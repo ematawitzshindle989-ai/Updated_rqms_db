@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RQMS —  Staff Analytics</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+<body class="dashboard-page">
+  <header class="top-bar">
+    <div>
+      <h1> Staff Analytics</h1>
+      <p class="staff-info">St. Paul Hospital — Radiology Queue Performance Report</p>
+    </div>
+    <p class="clock" id="lblClock"></p>
+  </header>
+
+  <nav class="nav-bar" aria-label="Main menu">
+    <a href="{{ url_for('rqms.dashboard_page') }}">Dashboard</a>
+    <a href="{{ url_for('rqms.staff_analytics_page') }}" class="active">Staff Analytics</a>
+    <a href="{{ url_for('rqms.results_release_page') }}">Results Release</a>
+    <button type="button" class="nav-link" id="menuDisplay">Open Display Monitor</button>
+    <button type="button" class="nav-link" id="btnRefreshReport">Refresh Report</button>
+    <button type="button" class="nav-link" id="menuLogout">Logout</button>
+  </nav>
+
+  <main class="main-content">
+    <p class="analytics-meta" id="lblReportDate">Report date: —</p>
+
+    <section class="cards-row analytics-summary">
+      <article class="card">
+        <h2>Patients Today</h2>
+        <p class="stat-value" id="lblTotalToday">0</p>
+      </article>
+      <article class="card">
+        <h2>Completed</h2>
+        <p class="stat-value" id="lblCompletedToday">0</p>
+      </article>
+      <article class="card">
+        <h2>Skipped</h2>
+        <p class="stat-value" id="lblSkippedToday">0</p>
+      </article>
+      <article class="card">
+        <h2>Waiting Now</h2>
+        <p class="stat-value" id="lblWaitingNow">0</p>
+      </article>
+      <article class="card">
+        <h2>Avg. Wait (min)</h2>
+        <p class="stat-value" id="lblAvgWait">0</p>
+      </article>
+      <article class="card">
+        <h2>Completion Rate</h2>
+        <p class="stat-value" id="lblCompletionRate">0%</p>
+      </article>
+    </section>
+
+    <section class="analytics-grid">
+      <article class="panel">
+        <div class="panel-header">Patients by Service Type (Today)</div>
+        <div class="panel-body" id="chartByService"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">Patients by Room (Today)</div>
+        <div class="panel-body" id="chartByRoom"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">Queue Status (All Records)</div>
+        <div class="panel-body" id="chartByStatus"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">Hourly Registrations (Today, 8 AM – 5 PM)</div>
+        <div class="panel-body chart-hourly" id="chartHourly"></div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">Recently Completed (Today)</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Queue #</th>
+              <th>Patient</th>
+              <th>Service</th>
+              <th>Room</th>
+              <th>Completed At</th>
+            </tr>
+          </thead>
+          <tbody id="tblRecentCompleted"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/staff_analytics.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RQMS — Staff Dashboard</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="dashboard-page">
+  <header class="top-bar">
+    <div>
+      <h1>St. Paul Hospital — RQMS Dashboard</h1>
+      <p class="staff-info" id="lblStaff">Staff</p>
+    </div>
+    <p class="clock" id="lblClock"></p>
+  </header>
+
+  <nav class="nav-bar" aria-label="Main menu">
+    <a href="#" class="active">Dashboard</a>
+    <button type="button" class="nav-link" id="menuDisplay">Open Display Monitor</button>
+    <button type="button" class="nav-link" id="menuTestDb">Test Database</button>
+    <button type="button" class="nav-link" id="menuAbout">About</button>
+    <button type="button" class="nav-link" id="menuLogout">Logout</button>
+  </nav>
+
+  <main class="main-content">
+    <section class="cards-row">
+      <article class="card">
+        <h2>Now Serving</h2>
+        <p class="now-serving-number" id="lblNowServing">---</p>
+        <p><strong>Room:</strong> <span id="lblNowRoom">---</span></p>
+        <p><strong>Patient:</strong> <span id="lblNowPatient">---</span></p>
+        <p><strong>Service:</strong> <span id="lblNowService">---</span></p>
+      </article>
+
+      <article class="card">
+        <h2>Queue Statistics</h2>
+        <p class="stat-label">Waiting</p>
+        <p class="stat-value" id="lblStatWaiting">0</p>
+        <p class="stat-label">Serving</p>
+        <p class="stat-value" id="lblStatServing">0</p>
+        <p class="stat-label">Completed Today</p>
+        <p class="stat-value" id="lblStatCompleted">0</p>
+        <p class="stat-label">Total Today</p>
+        <p class="stat-value" id="lblStatTotal">0</p>
+      </article>
+
+      <article class="card">
+        <h2>Upcoming Queue</h2>
+        <ul class="upcoming-list" id="lstUpcoming"></ul>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">Active Queue</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Queue #</th>
+              <th>Patient</th>
+              <th>Service</th>
+              <th>Room</th>
+              <th>Status</th>
+              <th>Time</th>
+              <th>Tracking</th>
+            </tr>
+          </thead>
+          <tbody id="queueTableBody"></tbody>
+        </table>
+      </div>
+      <div class="actions-bar">
+        <button type="button" class="btn btn-primary" id="btnRegister">Register Patient</button>
+        <button type="button" class="btn btn-success" id="btnCallNext">Call Next</button>
+        <button type="button" class="btn btn-secondary" id="btnSkip">Skip</button>
+        <button type="button" class="btn btn-secondary" id="btnRecall">Recall</button>
+        <button type="button" class="btn btn-primary" id="btnComplete">Complete Queue</button>
+        <button type="button" class="btn btn-outline btn-sm" id="btnRefresh">Refresh</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Register Patient modal (dialog) -->
+  <div id="modalRegister" class="modal-overlay" role="dialog" aria-labelledby="modalTitle" aria-modal="true">
+    <div class="modal">
+      <div class="modal-header" id="modalTitle">Register Patient</div>
+      <div class="modal-body">
+        <p id="lblModalError" class="error-msg"></p>
+
+        <div class="form-group">
+          <label for="tbxPatientName">Patient Name</label>
+          <input type="text" id="tbxPatientName" />
+        </div>
+
+        <div class="form-group">
+          <label for="cboServiceType">Service Type</label>
+          <select id="cboServiceType">
+            <option>X-Ray</option>
+            <option>Ultrasound</option>
+            <option>CT Scan</option>
+            <option>MRI</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="cboRoom">Assigned Room</label>
+          <select id="cboRoom">
+            <option>Room 1</option>
+            <option>Room 2</option>
+            <option>Room 3</option>
+            <option>Room 4</option>
+          </select>
+        </div>
+
+        <div class="checkbox-row">
+          <input type="checkbox" id="chkSmsNotify" />
+          <label for="chkSmsNotify">Enable SMS notification (optional)</label>
+        </div>
+
+        <p class="queue-preview" id="lblQueuePreview">Next Queue #: R-105</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnModalCancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btnModalSubmit">Register &amp; Print Slip</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/database.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

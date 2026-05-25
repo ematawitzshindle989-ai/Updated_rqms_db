@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RQMS — Queue Display Monitor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+<body class="display-page">
+  <a href="{{ url_for('rqms.dashboard_page') }}" class="back-link">&larr; Back to Dashboard</a>
+
+  <header class="display-header">
+    <h1>ST. PAUL HOSPITAL — RADIOLOGY</h1>
+    <p class="display-clock" id="lblClock">00:00:00</p>
+  </header>
+
+  <div class="display-main">
+    <section>
+      <p class="now-label">NOW SERVING</p>
+      <p class="now-number" id="lblNowNumber">---</p>
+      <p class="now-room" id="lblNowRoom">Please wait for your number</p>
+      <div class="display-upcoming" style="margin-top:48px;">
+        <h2>UPCOMING</h2>
+        <ul id="lstUpcoming"></ul>
+      </div>
+    </section>
+    <aside>
+      <div class="qr-box">QR</div>
+      <p class="qr-hint">Scan QR on slip to track queue on mobile</p>
+    </aside>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/display.js') }}"></script>
+</body>
+</html>

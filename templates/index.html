@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RQMS — Login | St. Paul Hospital</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+<body class="login-page">
+  <div class="login-card">
+    <header class="login-header">
+      <h1>St. Paul Hospital — RQMS</h1>
+    </header>
+
+    <div class="login-body">
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="tbxUsername">Username</label>
+          <input type="text" id="tbxUsername" name="username" autocomplete="username" />
+        </div>
+
+        <div class="form-group">
+          <label for="tbxPassword">Password</label>
+          <input type="password" id="tbxPassword" name="password" autocomplete="current-password" />
+        </div>
+
+        <div class="form-group">
+          <span style="display:block;font-weight:600;margin-bottom:8px;">Role</span>
+          <div class="role-group">
+            <label>
+              <input type="radio" name="role" value="Staff" checked />
+              Staff
+            </label>
+            <label>
+              <input type="radio" name="role" value="Admin" />
+              Admin
+            </label>
+          </div>
+        </div>
+
+        <p id="lblError" class="error-msg" role="alert"></p>
+
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary" id="btnLogin">Login</button>
+          <button type="button" class="btn btn-secondary" id="btnExit">Exit</button>
+        </div>
+
+        <p class="demo-hint">Demo: admin / 1234 (Admin) &nbsp;|&nbsp; staff / 1234 (Staff)</p>
+      </form>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/login.js') }}"></script>
+</body>
+</html>

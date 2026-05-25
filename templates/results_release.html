@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RQMS — Results Ready for Release</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+<body class="dashboard-page">
+  <header class="top-bar">
+    <div>
+      <h1>Results Ready for Release</h1>
+      <p class="staff-info">St. Paul Hospital — Radiology Result Collection &amp; Patient Notification</p>
+    </div>
+    <p class="clock" id="lblClock"></p>
+  </header>
+
+  <nav class="nav-bar" aria-label="Main menu">
+    <a href="{{ url_for('rqms.dashboard_page') }}">Dashboard</a>
+    <a href="{{ url_for('rqms.staff_analytics_page') }}">Staff Analytics</a>
+    <a href="{{ url_for('rqms.results_release_page') }}" class="active">Results Release</a>
+    <button type="button" class="nav-link" id="menuDisplay">Open Display Monitor</button>
+    <button type="button" class="nav-link" id="btnRefreshList">Refresh</button>
+    <button type="button" class="nav-link" id="menuLogout">Logout</button>
+  </nav>
+
+  <main class="main-content">
+    <section class="cards-row analytics-summary">
+      <article class="card card-highlight">
+        <h2>Ready for Release</h2>
+        <p class="stat-value" id="lblCountReady">0</p>
+        <p class="stat-label">Patients may claim results</p>
+      </article>
+      <article class="card">
+        <h2>Processing</h2>
+        <p class="stat-value" id="lblCountProcessing">0</p>
+      </article>
+      <article class="card">
+        <h2>Released / Claimed</h2>
+        <p class="stat-value" id="lblCountReleased">0</p>
+      </article>
+      <article class="card">
+        <h2>Total Completed</h2>
+        <p class="stat-value" id="lblCountTotal">0</p>
+      </article>
+    </section>
+
+    <div class="toolbar-row">
+      <div class="filter-tabs" role="tablist">
+        <button type="button" class="filter-tab active" data-filter="All">All</button>
+        <button type="button" class="filter-tab" data-filter="Processing">Processing</button>
+        <button type="button" class="filter-tab" data-filter="Ready for Release">Ready for Release</button>
+        <button type="button" class="filter-tab" data-filter="Released">Released</button>
+      </div>
+      <label class="search-box">
+        <span>Search</span>
+        <input type="search" id="searchResults" placeholder="Queue #, patient, service" />
+      </label>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header">Completed Patient Results</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Queue #</th>
+              <th>Patient</th>
+              <th>Service</th>
+              <th>Exam Completed</th>
+              <th>Result Status</th>
+              <th>Ready At</th>
+              <th>Notified</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tblResults"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <p class="analytics-meta">
+      Workflow: Complete exam on Dashboard → Processing → Mark <strong>Ready for Release</strong>
+      (sends SMS) → Patient claims → Mark <strong>Released</strong>.
+    </p>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/results_release.js') }}"></script>
+</body>
+</html>
