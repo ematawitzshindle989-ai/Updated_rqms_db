@@ -1,0 +1,87 @@
+/* Display monitor page styles */
+.display-page {
+    min-height: 100vh;
+    background: var(--blue-dark);
+    color: var(--white);
+    padding: 32px;
+}
+
+.display-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.display-header h1 {
+    font-size: 1.5rem;
+}
+
+.display-clock {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.display-main {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 48px;
+    align-items: start;
+}
+
+.now-label {
+    font-size: 2.205rem;
+    opacity: 0.8;
+    letter-spacing: 0.1em;
+}
+
+.now-number {
+    font-size: 10rem;
+    font-weight: 800;
+    line-height: 1;
+    margin: 16px 0;
+}
+
+.now-room {
+    font-size: 3.5rem;
+    opacity: 0.95;
+}
+
+.display-upcoming h2 {
+    font-size: 1rem;
+    margin-bottom: 16px;
+    opacity: 0.9;
+}
+
+.display-upcoming ul {
+    list-style: none;
+    font-size: 1.1rem;
+}
+
+.display-upcoming li {
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.back-link {
+    display: inline-block;
+    margin-bottom: 20px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.9rem;
+}
+
+.back-link:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+    .now-number {
+        font-size: 4rem;
+    }
+
+    .display-main {
+        grid-template-columns: 1fr;
+    }
+}

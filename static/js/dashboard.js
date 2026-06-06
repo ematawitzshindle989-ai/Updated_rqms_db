@@ -233,16 +233,16 @@ function printQueueSlip(patient) {
 
   printWindow.document.write(
     "<!DOCTYPE html><html><head><title>Queue Slip</title><style>body{font-family:Arial,sans-serif;padding:24px;}h1{margin-bottom:8px;}p{margin:8px 0;}small{color:#555;}</style></head><body>" +
-      "<h1>St. Paul Hospital</h1>" +
-      "<h2>Queue Slip</h2>" +
-      "<p><strong>Queue Number:</strong> " + escapeHtml(patient.queueNumber) + "</p>" +
-      "<p><strong>Patient:</strong> " + escapeHtml(patient.patientName) + "</p>" +
-      phoneLine +
-      "<p><strong>Service:</strong> " + escapeHtml(patient.serviceType) + "</p>" +
-      "<p><strong>Room:</strong> " + escapeHtml(patient.assignedRoom) + "</p>" +
-      "<p><strong>Tracking Code:</strong> " + escapeHtml(patient.trackingCode) + "</p>" +
-      "<p><small>Generated from RQMS dashboard.</small></p>" +
-      "</body></html>"
+    "<h1>St. Paul Hospital</h1>" +
+    "<h2>Queue Slip</h2>" +
+    "<p><strong>Queue Number:</strong> " + escapeHtml(patient.queueNumber) + "</p>" +
+    "<p><strong>Patient:</strong> " + escapeHtml(patient.patientName) + "</p>" +
+    phoneLine +
+    "<p><strong>Service:</strong> " + escapeHtml(patient.serviceType) + "</p>" +
+    "<p><strong>Room:</strong> " + escapeHtml(patient.assignedRoom) + "</p>" +
+    "<p><strong>Tracking Code:</strong> " + escapeHtml(patient.trackingCode) + "</p>" +
+    "<p><small>Generated from RQMS dashboard.</small></p>" +
+    "</body></html>"
   );
   printWindow.document.close();
   printWindow.focus();
@@ -379,6 +379,22 @@ async function addService() {
   }
 }
 
+function getRoomSpeech(roomName) {
+  if (!roomName) return "";
+  const match = roomName.match(/room\s*(\d+)/i);
+  return match ? match[1] : roomName;
+}
+
+function speakText(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "en-US";
+  utterance.rate = 0.95;
+  utterance.pitch = 1.0;
+  window.speechSynthesis.speak(utterance);
+}
+
 async function callNextPatient() {
   const result = await apiCallNext();
   if (!result.success) {
@@ -386,11 +402,17 @@ async function callNextPatient() {
     return;
   }
   const p = result.patient;
+  const roomSpeech = getRoomSpeech(p.assignedRoom);
+  const announcement =
+    p.queueNumber + " please proceed to room number " + roomSpeech + " immediately.";
+
   alert(
     'Calling queue ' + p.queueNumber + " — " + p.patientName +
     "\nRoom: " + p.assignedRoom +
-    '\n[Audio: "Now serving ' + p.queueNumber + '"]'
+    "\n\n" + announcement
   );
+
+  speakText(announcement);
   await refreshDashboard();
 }
 
@@ -447,8 +469,8 @@ async function completePatient() {
   }
   alert(
     "Queue " +
-      result.patient.queueNumber +
-      " marked complete.\nResult status: Processing (manage under Results Release)."
+    result.patient.queueNumber +
+    " marked complete.\nResult status: Processing (manage under Results Release)."
   );
   await refreshDashboard();
 }

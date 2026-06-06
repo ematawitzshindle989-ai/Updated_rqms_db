@@ -1,15 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RQMS — Login | St. Paul Hospital</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}" />
 </head>
+
 <body class="login-page">
   <div class="login-card">
     <header class="login-header">
-      <h1>St. Paul Hospital — RQMS</h1>
+      <h1>St. Paul Hospital — Radiology Dept.</h1>
+      <h2>Please log in to your account</h2>
     </header>
 
     <div class="login-body">
@@ -45,7 +49,7 @@
           <button type="button" class="btn btn-secondary" id="btnExit">Exit</button>
         </div>
 
-        <p class="demo-hint">Demo: admin / 1234 (Admin) &nbsp;|&nbsp; staff / 1234 (Staff)</p>
+
       </form>
     </div>
   </div>
@@ -53,4 +57,5 @@
   <script src="{{ url_for('static', filename='js/api.js') }}"></script>
   <script src="{{ url_for('static', filename='js/login.js') }}"></script>
 </body>
+
 </html>
