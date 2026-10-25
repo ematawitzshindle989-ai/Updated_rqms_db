@@ -3,7 +3,15 @@
  */
 
 document.addEventListener("DOMContentLoaded", async function () {
-  const session = await apiGetSession();
+  let session;
+  try {
+    session = await apiGetSession();
+  } catch (err) {
+    console.error(err);
+    alert("Unable to verify your session. Check the Flask server and try again.");
+    return;
+  }
+
   if (!session) {
     window.location.href = "/";
     return;

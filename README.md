@@ -47,6 +47,16 @@ MYSQL_PASSWORD=your_xampp_password
 python init_db.py
 ```
 
+For an existing database, run `database/migration_emergency.sql` and
+`database/migration_sms.sql` once, or start Flask to apply the safe column/table
+upgrades automatically.
+
+The startup schema upgrade also adds Staff account activation and expands the
+password column for hashed passwords. Alternatively, run
+`database/migration_account_handler.sql` once manually. New and reset Staff
+passwords are stored as one-way hashes; existing demo passwords are upgraded
+when their account successfully logs in.
+
 ### 4. Run the application
 
 ```bash
@@ -100,6 +110,9 @@ RadiologyQueueManagementSystem-Web/
 |--------|-----|---------|
 | GET | `/` | Login page |
 | GET | `/dashboard` | Staff dashboard |
+| GET | `/patients` | Registered Patient List |
+| GET | `/api/patients/registered` | Read-only list of registered patients |
+| GET | `/api/sms/simulation-log` | Recent SMS simulation/audit messages |
 | GET | `/display` | Public monitor |
 | GET | `/staff-analytics` | AHM Staff Analytics report |
 | GET | `/results-release` | Results Ready for Release list |
@@ -112,11 +125,48 @@ RadiologyQueueManagementSystem-Web/
 | POST | `/api/logout` | End session |
 | GET | `/api/health` | Test MySQL connection |
 | GET | `/api/queue/dashboard` | Queue + stats |
+| GET | `/api/queue/display` | Queue monitor data + emergency status |
+| POST | `/api/queue/emergency` | Activate/deactivate emergency mode and record timestamps |
 | POST | `/api/queue/register` | Add patient |
+| POST | `/api/queue/reminders` | Process automatic five-patients-ahead reminders |
 | POST | `/api/queue/call-next` | Call next |
 | POST | `/api/queue/{id}/skip` | Skip |
 | POST | `/api/queue/{id}/recall` | Recall |
 | POST | `/api/queue/complete` | Complete |
+
+### SIM800C SMS setup
+
+Connect the SIM800C USB GSM module and set its serial port in `.env`:
+
+```
+SIM800C_PORT=COM3
+SIM800C_BAUDRATE=9600
+SIM800C_TIMEOUT=5
+SMS_MODE=sim800c
+```
+
+The application uses the modem's AT commands and marks a notification as
+**Sent** only after the SIM800C confirms the transmission. Set
+`SMS_MODE=simulation` in `.env` to record messages without sending anything
+over the air; `sim800c` is the default and sends real messages through the
+connected modem.
+Only patients who enabled SMS at registration receive these notifications.
+When staff select **Call Next Patient**, an opted-in patient receives their
+queue number and actual assigned room (for example,
+`R133, please proceed to Ultrasound Room 1.`). Queue reminders and result-ready
+notifications continue to use their existing triggers and SMS preferences.
+An opted-in patient receives the five-patients-away reminder when their
+position is exactly sixth in the currently waiting queue (five waiting patients
+ahead). Called, served, cancelled, and other non-waiting entries are excluded
+from the position count. Each queue record is attempted once; failed attempts
+are logged and are not retried on subsequent refreshes.
+Selecting **Emergency** as a patient's queue priority, or activating Emergency
+Mode, sends one notice per emergency incident to currently waiting Regular
+patients who opted into SMS and have a valid phone number. Both actions share
+the incident's notification marker, so using both does not send duplicate
+notices. Notification attempts are recorded in the SMS log; a failed SMS does
+not cancel the emergency registration or Emergency Mode activation.
+For an existing database, run `database/migration_sms_log.sql` once.
 
 ## Thesis software requirements (aligned)
 

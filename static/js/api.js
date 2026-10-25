@@ -51,9 +51,33 @@ async function apiGetDashboard() {
   return data;
 }
 
+async function apiGetRegisteredPatients() {
+  const { data } = await apiFetch("/api/patients/registered");
+  return data;
+}
+
+async function apiGetSmsSimulationLog() {
+  const { data } = await apiFetch("/api/sms/simulation-log");
+  return data;
+}
+
 async function apiGetDisplay() {
   const { data } = await apiFetch("/api/queue/display");
   return data;
+}
+
+async function apiSetEmergency(active) {
+  const { ok, data } = await apiFetch("/api/queue/emergency", {
+    method: "POST",
+    body: JSON.stringify({ active }),
+  });
+  return {
+    success: ok && data.success,
+    message: data.message,
+    emergency: data.emergency,
+    changed: data.changed,
+    smsNotification: data.smsNotification,
+  };
 }
 
 async function apiGetConfiguration() {
@@ -71,7 +95,12 @@ async function apiRegisterPatient(patientName, serviceType, assignedRoom, smsNot
     method: "POST",
     body: JSON.stringify({ patientName, serviceType, assignedRoom, smsNotify, patientPhone, patientPriority }),
   });
-  return { success: ok && data.success, message: data.message, patient: data.patient };
+  return {
+    success: ok && data.success,
+    message: data.message,
+    patient: data.patient,
+    emergencyNotification: data.emergencyNotification,
+  };
 }
 
 async function apiDispatchReminders() {
@@ -108,6 +137,16 @@ async function apiCallNext() {
 async function apiSkip(queueId) {
   const { ok, data } = await apiFetch(`/api/queue/${queueId}/skip`, { method: "POST" });
   return { success: ok && data.success, message: data.message };
+}
+
+async function apiCancel(queueId) {
+  const { ok, data } = await apiFetch(`/api/queue/${queueId}/cancel`, { method: "POST" });
+  return { success: ok && data.success, message: data.message, patient: data.patient };
+}
+
+async function apiMove(queueId, direction) {
+  const { ok, data } = await apiFetch(`/api/queue/${queueId}/move/${direction}`, { method: "POST" });
+  return { success: ok && data.success, message: data.message, patient: data.patient };
 }
 
 async function apiRecall(queueId) {

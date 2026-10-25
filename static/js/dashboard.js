@@ -4,6 +4,7 @@
 
 let selectedQueueId = null;
 let currentUserRole = "Staff";
+let callNextInProgress = false;
 const defaultCatalog = {
   rooms: [
     { roomId: null, roomName: "Room 1" },
@@ -27,6 +28,8 @@ let currentCatalog = {
 
 const registerModal = document.getElementById("modalRegister");
 const configModal = document.getElementById("modalConfig");
+const receiptModal = document.getElementById("modalReceipt");
+let registeredReceiptPatient = null;
 
 document.addEventListener("DOMContentLoaded", async function () {
   try {
@@ -80,7 +83,7 @@ function bindActions() {
   document.getElementById("btnComplete").addEventListener("click", completePatient);
   document.getElementById("btnManageConfig").addEventListener("click", openManageConfigModal);
   document.getElementById("btnRefresh").addEventListener("click", refreshDashboard);
-  document.getElementById("btnSimulateReminder").addEventListener("click", simulateReminder);
+  document.getElementById("btnEmergency").addEventListener("click", toggleEmergency);
   document.getElementById("btnAddRoom").addEventListener("click", addRoom);
   document.getElementById("btnAddService").addEventListener("click", addService);
 }
@@ -88,6 +91,10 @@ function bindActions() {
 function bindModal() {
   document.getElementById("btnModalCancel").addEventListener("click", closeRegisterModal);
   document.getElementById("btnModalSubmit").addEventListener("click", submitRegister);
+  document.getElementById("btnReceiptPrint").addEventListener("click", function () {
+    printQueueSlip(registeredReceiptPatient);
+  });
+  document.getElementById("btnReceiptClose").addEventListener("click", closeReceiptModal);
   document.getElementById("btnConfigCancel").addEventListener("click", closeManageConfigModal);
   document.getElementById("chkSmsNotify").addEventListener("change", togglePhoneField);
 
@@ -96,6 +103,9 @@ function bindModal() {
   });
   configModal.addEventListener("click", function (e) {
     if (e.target === configModal) closeManageConfigModal();
+  });
+  receiptModal.addEventListener("click", function (e) {
+    if (e.target === receiptModal) closeReceiptModal();
   });
 }
 
@@ -211,12 +221,27 @@ async function submitRegister() {
 
   closeRegisterModal();
   await refreshDashboard();
-  printQueueSlip(result.patient);
+  openReceiptModal(result.patient);
+  if (result.emergencyNotification) {
+    showEmergencySmsResult(result.emergencyNotification);
+  }
+}
 
-  const smsNote = sms ? "\nSMS notification queued." : "";
-  alert(
-    "Patient registered.\nQueue: " + result.patient.queueNumber + "\nTracking: " + result.patient.trackingCode + smsNote
-  );
+function openReceiptModal(patient) {
+  if (!patient) return;
+  registeredReceiptPatient = patient;
+  document.getElementById("receiptQueueNumber").textContent = patient.queueNumber || "—";
+  document.getElementById("receiptPatientName").textContent = patient.patientName || "—";
+  document.getElementById("receiptService").textContent = patient.serviceType || "—";
+  document.getElementById("receiptRoom").textContent = patient.assignedRoom || "—";
+  document.getElementById("receiptRegisteredAt").textContent =
+    formatReceiptDateTime(patient.registeredAt);
+  receiptModal.classList.add("visible");
+}
+
+function closeReceiptModal() {
+  receiptModal.classList.remove("visible");
+  registeredReceiptPatient = null;
 }
 
 function printQueueSlip(patient) {
@@ -227,30 +252,36 @@ function printQueueSlip(patient) {
     return;
   }
 
-  const phoneLine = patient.patientPhone
-    ? "<p><strong>Patient Number:</strong> " + escapeHtml(patient.patientPhone) + "</p>"
-    : "";
-
   printWindow.document.write(
-    "<!DOCTYPE html><html><head><title>Queue Slip</title><style>body{font-family:Arial,sans-serif;padding:24px;}h1{margin-bottom:8px;}p{margin:8px 0;}small{color:#555;}</style></head><body>" +
-    "<h1>St. Paul Hospital</h1>" +
-    "<h2>Queue Slip</h2>" +
-    "<p><strong>Queue Number:</strong> " + escapeHtml(patient.queueNumber) + "</p>" +
+    "<!DOCTYPE html><html><head><title>Radiology Queue Ticket</title><style>" +
+    "body{font-family:Arial,sans-serif;margin:0;padding:32px;background:#f4f6f8;color:#1e293b;}" +
+    ".ticket{max-width:420px;margin:0 auto;padding:28px;border:1px solid #dbe4ee;border-radius:12px;background:#fff;text-align:center;}" +
+    ".hospital{margin:0;color:#0f3460;font-size:20px;}.department{margin:6px 0 24px;color:#64748b;font-size:13px;}" +
+    ".queue-label{margin:0;color:#64748b;font-size:12px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;}" +
+    ".queue-number{margin:4px 0 22px;color:#1e5aa0;font-size:56px;font-weight:bold;line-height:1.1;}" +
+    ".details{padding-top:14px;border-top:1px solid #e2e8f0;text-align:left;}.details p{margin:9px 0;font-size:14px;}" +
+    ".instruction{margin:22px 0 0;padding:12px;border-radius:8px;background:#e8f1fb;color:#0f3460;font-size:13px;}" +
+    "@media print{body{padding:0;background:#fff}.ticket{border:0;border-radius:0;}}" +
+    "</style></head><body><main class=\"ticket\">" +
+    "<h1 class=\"hospital\">St. Paul Hospital</h1>" +
+    "<p class=\"department\">Radiology Department · Queue Ticket</p>" +
+    "<p class=\"queue-label\">Your Queue Number</p>" +
+    "<p class=\"queue-number\">" + escapeHtml(patient.queueNumber) + "</p>" +
+    "<section class=\"details\">" +
     "<p><strong>Patient:</strong> " + escapeHtml(patient.patientName) + "</p>" +
-    phoneLine +
     "<p><strong>Service:</strong> " + escapeHtml(patient.serviceType) + "</p>" +
-    "<p><strong>Room:</strong> " + escapeHtml(patient.assignedRoom) + "</p>" +
-    "<p><strong>Tracking Code:</strong> " + escapeHtml(patient.trackingCode) + "</p>" +
-    "<p><small>Generated from RQMS dashboard.</small></p>" +
+    "<p><strong>Room:</strong> " + escapeHtml(patient.assignedRoom || "To be announced") + "</p>" +
+    "<p><strong>Registered:</strong> " + escapeHtml(formatReceiptDateTime(patient.registeredAt)) + "</p>" +
+    "</section>" +
+    "<p class=\"instruction\">Please wait for your queue number to be called.</p>" +
+    "</main>" +
     "</body></html>"
   );
   printWindow.document.close();
   printWindow.focus();
   setTimeout(function () {
     printWindow.print();
-    printWindow.onafterprint = function () {
-      printWindow.close();
-    };
+    printWindow.onafterprint = function () { printWindow.close(); };
   }, 300);
 }
 
@@ -379,41 +410,66 @@ async function addService() {
   }
 }
 
+let announcementSequence = 0;
+
 function getRoomSpeech(roomName) {
-  if (!roomName) return "";
-  const match = roomName.match(/room\s*(\d+)/i);
-  return match ? match[1] : roomName;
+  return (roomName || "").trim();
 }
 
-function speakText(text) {
+function speakText(text, repetitions = 1) {
   if (!window.speechSynthesis) return;
+  const sequence = ++announcementSequence;
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "en-US";
-  utterance.rate = 0.95;
-  utterance.pitch = 1.0;
-  window.speechSynthesis.speak(utterance);
+
+  function speakNext(remaining) {
+    if (sequence !== announcementSequence) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-US";
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+    utterance.onend = function () {
+      if (remaining > 1) {
+        setTimeout(function () {
+          speakNext(remaining - 1);
+        }, 700);
+      }
+    };
+    window.speechSynthesis.speak(utterance);
+  }
+
+  speakNext(repetitions);
 }
 
 async function callNextPatient() {
-  const result = await apiCallNext();
-  if (!result.success) {
-    alert(result.message);
-    return;
+  if (callNextInProgress) return;
+  callNextInProgress = true;
+  const button = document.getElementById("btnCallNext");
+  button.disabled = true;
+  try {
+    const result = await apiCallNext();
+    if (!result.success) {
+      alert(result.message);
+      return;
+    }
+    const p = result.patient;
+    const roomSpeech = getRoomSpeech(p.assignedRoom);
+    const announcement = p.queueNumber + ", please proceed to room " + roomSpeech + ".";
+
+    alert(
+      'Calling queue ' + p.queueNumber + " — " + p.patientName +
+      "\nRoom: " + p.assignedRoom +
+      "\n\n" + announcement +
+      (result.smsNotification && result.smsNotification.status === "Failed"
+        ? "\n\nSMS could not be sent: " + result.smsNotification.message
+        : "")
+    );
+
+    speakText(announcement, 2);
+    await refreshDashboard();
+  } finally {
+    callNextInProgress = false;
+    button.disabled = false;
   }
-  const p = result.patient;
-  const roomSpeech = getRoomSpeech(p.assignedRoom);
-  const announcement =
-    p.queueNumber + " please proceed to room number " + roomSpeech + " immediately.";
-
-  alert(
-    'Calling queue ' + p.queueNumber + " — " + p.patientName +
-    "\nRoom: " + p.assignedRoom +
-    "\n\n" + announcement
-  );
-
-  speakText(announcement);
-  await refreshDashboard();
 }
 
 async function simulateReminder() {
@@ -486,6 +542,32 @@ async function refreshDashboard() {
   }
 }
 
+async function toggleEmergency() {
+  const emergency = document.getElementById("btnEmergency").dataset.active === "true";
+  const result = await apiSetEmergency(!emergency);
+  if (!result.success) {
+    alert(result.message || "Unable to update emergency mode.");
+    return;
+  }
+  renderEmergency(result.emergency);
+  if (result.smsNotification) {
+    showEmergencySmsResult(result.smsNotification);
+  }
+}
+
+function showEmergencySmsResult(notification) {
+  const details = (notification.failures || [])
+    .map(function (failure) {
+      return failure.queueNumber + ": " + failure.message;
+    })
+    .join("\n");
+  const summary = notification.message +
+    "\nSent: " + notification.sent +
+    "\nFailed: " + notification.failed +
+    "\nSkipped (not opted in/invalid number): " + notification.skipped;
+  alert(summary + (details ? "\n\n" + details : ""));
+}
+
 function showReminderNotice(reminders) {
   const notice = document.getElementById("reminderNotice");
   if (!reminders.length) {
@@ -507,6 +589,7 @@ function renderDashboard(data) {
   const queue = data.activeQueue || [];
   const stats = data.stats || {};
   const current = data.current;
+  renderEmergency(data.emergency);
 
   document.getElementById("lblNowServing").textContent = current ? current.queueNumber : "---";
   document.getElementById("lblNowRoom").textContent = current ? current.assignedRoom : "---";
@@ -555,6 +638,23 @@ function renderDashboard(data) {
     });
 }
 
+function renderEmergency(emergency) {
+  const active = Boolean(emergency && emergency.active);
+  const button = document.getElementById("btnEmergency");
+  const buttonLabel = button.querySelector(".action-label");
+  const status = document.getElementById("emergencyStatus");
+  const times = document.getElementById("emergencyTimes");
+  button.dataset.active = active.toString();
+  buttonLabel.textContent = active ? "End Emergency" : "Emergency Case";
+  button.classList.toggle("btn-emergency-active", active);
+  status.textContent = active
+    ? "Status: 🚨 EMERGENCY IN PROGRESS"
+    : "Emergency Mode is inactive";
+  times.textContent = active && emergency.activatedAt
+    ? "Started " + formatTime(emergency.activatedAt)
+    : "";
+}
+
 async function performLogout() {
   if (!confirm("Log out of RQMS?")) return;
   await apiLogout();
@@ -574,6 +674,19 @@ function startClock() {
 
 function formatTime(iso) {
   return new Date(iso).toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatReceiptDateTime(iso) {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("en-PH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function escapeHtml(text) {

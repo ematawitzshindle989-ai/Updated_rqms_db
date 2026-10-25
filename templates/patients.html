@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/patient-style.css') }}" />
+</head>
+<body class="dashboard-page patients-page">
+  <header class="top-bar">
+    <div>
+      <h1>St. Paul Hospital — RQMS Dashboard</h1>
+      <p class="staff-info" id="lblStaff">Staff</p>
+    </div>
+    <p class="clock" id="lblClock"></p>
+  </header>
+
+  <nav class="nav-bar" aria-label="Main menu">
+    <a href="{{ url_for('rqms.dashboard_page') }}" class="active">Dashboard</a>
+    <a href="{{ url_for('rqms.patients_page') }}">Patients</a>
+    <a href="{{ url_for('rqms.staff_analytics_page') }}">Staff Analytics</a>
+    <a href="{{ url_for('rqms.results_release_page') }}">Results Release</a>
+    {% if user.role == 'Admin' %}
+    <a href="{{ url_for('rqms.account_handler_page') }}">Account Handler</a>
+    {% endif %}
+    <button type="button" class="nav-link" id="menuDisplay">Open Display Monitor</button>
+    <button type="button" class="nav-link" id="menuTestDb">Test Database</button>
+    <button type="button" class="nav-link" id="menuAbout">About</button>
+    <button type="button" class="nav-link" id="menuLogout">Logout</button>
+  </nav>
+
+  <main class="registered-patients-page">
+    <section class="registered-patients-panel">
+      <div class="panel-header registered-patients-panel-header">
+        <span>Registered Patient List</span>
+        <input
+          type="search"
+          id="patientSearch"
+          class="patient-search"
+          placeholder="Search patients..."
+          aria-label="Search registered patients"
+        />
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Queue #</th>
+              <th>Patient Name</th>
+              <th>Service</th>
+              <th>Room</th>
+              <th>Registration Time</th>
+              <th>Mobile Number</th>
+              <th>SMS Notification</th>
+            </tr>
+          </thead>
+          <tbody id="registeredPatientsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/patients.js') }}"></script>
+</body>
+</html>

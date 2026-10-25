@@ -1,0 +1,158 @@
+.account-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.account-create-panel,
+.account-list-panel {
+  margin-bottom: 0;
+}
+
+.account-form {
+  padding: 20px;
+}
+
+.account-fields {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr auto;
+  align-items: end;
+  gap: 14px;
+}
+
+.account-fields label,
+.account-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--gray-900);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.account-fields input,
+.account-modal-field input {
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+.account-fields .btn {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.account-help {
+  margin-top: 10px;
+  color: var(--gray-500);
+  font-size: 0.8rem;
+}
+
+.account-message {
+  min-height: 0;
+  color: #a61f1f;
+  font-size: 0.875rem;
+}
+
+.account-message-success {
+  color: #256b2a;
+}
+
+.account-message:empty {
+  display: none;
+}
+
+.account-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.account-table-wrap {
+  max-height: min(55vh, 560px);
+  overflow: auto;
+}
+
+.account-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.account-table-wrap td:last-child {
+  min-width: 300px;
+}
+
+.account-status {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.account-status-active {
+  background: #e8f5e9;
+  color: #256b2a;
+}
+
+.account-status-inactive {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.account-actions .btn {
+  padding: 6px 9px;
+  font-size: 0.78rem;
+}
+
+.account-empty {
+  padding: 24px;
+  color: var(--gray-500);
+  text-align: center;
+}
+
+.account-modal {
+  border: 0;
+  padding: 0;
+}
+
+.account-modal .account-message {
+  margin-bottom: 12px;
+}
+
+.account-modal-field + .account-modal-field {
+  margin-top: 14px;
+}
+
+@media (max-width: 900px) {
+  .account-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+}
+
+@media (max-width: 600px) {
+  .account-main {
+    padding: 16px;
+  }
+
+  .account-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .account-fields .btn {
+    width: 100%;
+  }
+
+  .account-list-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

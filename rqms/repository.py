@@ -1,10 +1,12 @@
 """Data access and queue business logic (LINQ-style queries in Python)."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from mysql.connector import Error
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from rqms.db import get_connection
+from rqms.sms import SmsError, send_sms, validate_phone_number
 
 QUEUE_STATUS = {
     "WAITING": "Waiting",
@@ -12,7 +14,10 @@ QUEUE_STATUS = {
     "SERVING": "Serving",
     "COMPLETED": "Completed",
     "SKIPPED": "Skipped",
+    "CANCELLED": "Cancelled",
 }
+
+REMINDER_AHEAD_COUNT = 5
 
 RESULT_STATUS = {
     "NONE": "—",
@@ -24,8 +29,10 @@ RESULT_STATUS = {
 _PATIENT_SELECT = """
     queue_id, queue_number, patient_name, patient_phone, patient_priority,
     sms_enabled, reminder_sent, service_type, assigned_room,
+    reminder_status, reminder_sent_at,
     status, registered_at, called_at, completed_at, tracking_code,
-    result_status, result_ready_at, result_released_at, result_notify_sent
+    result_status, result_ready_at, result_released_at, result_notify_sent,
+    turn_notification_status, turn_notification_sent_at
 """
 
 
@@ -39,6 +46,10 @@ def _row_to_patient(row):
         "priority": row.get("patient_priority") or "Regular",
         "smsEnabled": bool(row.get("sms_enabled")),
         "reminderSent": bool(row.get("reminder_sent")),
+        "reminderStatus": row.get("reminder_status") or ("Sent" if row.get("reminder_sent") else "Not Sent"),
+        "reminderSentAt": row["reminder_sent_at"].isoformat()
+        if row.get("reminder_sent_at")
+        else None,
         "serviceType": row["service_type"],
         "assignedRoom": row["assigned_room"],
         "status": row["status"],
@@ -54,15 +65,24 @@ def _row_to_patient(row):
         if row.get("result_released_at")
         else None,
         "resultNotifySent": bool(row.get("result_notify_sent")),
+        "turnNotificationStatus": row.get("turn_notification_status")
+        or ("Sent" if row.get("result_notify_sent") else "Not Sent"),
+        "turnNotificationSentAt": row["turn_notification_sent_at"].isoformat()
+        if row.get("turn_notification_sent_at")
+        else None,
     }
 
 
 def _normalize_priority(value):
-    return value if value in ("Regular", "Priority") else "Regular"
+    return value if value in ("Regular", "Priority", "Emergency") else "Regular"
 
 
 def _queue_sort_key(patient):
-    priority_rank = 0 if patient.get("priority") == "Priority" else 1
+    priority_rank = {
+        "Emergency": 0,
+        "Priority": 1,
+        "Regular": 2,
+    }.get(patient.get("priority"), 2)
     return (priority_rank, patient.get("registeredAt") or "")
 
 
@@ -73,23 +93,206 @@ def try_login(username, password, role):
     try:
         cursor.execute(
             """
-            SELECT user_id, username, full_name, role
+            SELECT user_id, username, password, full_name, role, is_active
             FROM users
             WHERE LOWER(username) = LOWER(%s)
-              AND password = %s
               AND LOWER(role) = LOWER(%s)
             """,
-            (username, password, role),
+            (username, role),
         )
         row = cursor.fetchone()
-        if not row:
+        if not row or not row["is_active"]:
             return None
+
+        stored_password = row["password"]
+        if stored_password.startswith(("pbkdf2:", "scrypt:")):
+            valid_password = check_password_hash(stored_password, password)
+        else:
+            valid_password = stored_password == password
+            if valid_password:
+                cursor.execute(
+                    """
+                    UPDATE users SET password = %s
+                    WHERE user_id = %s AND password = %s
+                    """,
+                    (generate_password_hash(password), row["user_id"], stored_password),
+                )
+                conn.commit()
+
+        if not valid_password:
+            return None
+
         return {
             "userId": row["user_id"],
             "username": row["username"],
             "fullName": row["full_name"],
             "role": row["role"],
         }
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def is_account_active(user_id):
+    """Check active state for a logged-in account before serving protected routes."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT is_active FROM users WHERE user_id = %s",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        return bool(row and row[0])
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_staff_accounts():
+    """Return account-management fields for Staff accounts only."""
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT user_id, username, full_name, is_active
+            FROM users
+            WHERE role = 'Staff'
+            ORDER BY full_name, username
+            """
+        )
+        return [
+            {
+                "userId": row["user_id"],
+                "username": row["username"],
+                "fullName": row["full_name"],
+                "isActive": bool(row["is_active"]),
+            }
+            for row in cursor.fetchall()
+        ]
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def create_staff_account(username, password, full_name):
+    """Create a Staff account with a one-way password hash."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO users (username, password, full_name, role, is_active)
+            VALUES (%s, %s, %s, 'Staff', 1)
+            """,
+            (username, generate_password_hash(password), full_name),
+        )
+        conn.commit()
+        return cursor.lastrowid
+    except Error as exc:
+        if exc.errno == 1062:
+            return None
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_staff_account(user_id, username, full_name):
+    """Update the username and display name of a Staff account."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            UPDATE users
+            SET username = %s, full_name = %s
+            WHERE user_id = %s AND role = 'Staff'
+            """,
+            (username, full_name, user_id),
+        )
+        conn.commit()
+        if cursor.rowcount > 0:
+            return True
+        cursor.execute(
+            "SELECT 1 FROM users WHERE user_id = %s AND role = 'Staff'",
+            (user_id,),
+        )
+        return cursor.fetchone() is not None
+    except Error as exc:
+        if exc.errno == 1062:
+            return None
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def reset_staff_password(user_id, password):
+    """Set a new one-way password hash for a Staff account."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            UPDATE users SET password = %s
+            WHERE user_id = %s AND role = 'Staff'
+            """,
+            (generate_password_hash(password), user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def set_staff_account_active(user_id, is_active):
+    """Activate or deactivate a Staff account."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            UPDATE users SET is_active = %s
+            WHERE user_id = %s AND role = 'Staff'
+            """,
+            (1 if is_active else 0, user_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_staff_account(user_id):
+    """Delete a Staff account without allowing Admin accounts to be targeted."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT 1 FROM users WHERE user_id = %s AND role = 'Staff'",
+            (user_id,),
+        )
+        if cursor.fetchone() is None:
+            return False
+        cursor.execute(
+            """
+            UPDATE emergency_cases
+            SET activated_by = CASE WHEN activated_by = %s THEN NULL ELSE activated_by END,
+                deactivated_by = CASE WHEN deactivated_by = %s THEN NULL ELSE deactivated_by END
+            WHERE activated_by = %s OR deactivated_by = %s
+            """,
+            (user_id, user_id, user_id, user_id),
+        )
+        cursor.execute(
+            "DELETE FROM users WHERE user_id = %s AND role = 'Staff'",
+            (user_id,),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
     finally:
         cursor.close()
         conn.close()
@@ -110,12 +313,16 @@ def get_all_patients():
 
 
 def get_active_queue():
-    """LINQ-style filter: patients not completed or skipped, ordered by priority."""
+    """Return patients still occupying a position in the active queue."""
     all_patients = get_all_patients()
     active_patients = [
         p
         for p in all_patients
-        if p["status"] not in (QUEUE_STATUS["COMPLETED"], QUEUE_STATUS["SKIPPED"])
+        if p["status"] not in (
+            QUEUE_STATUS["COMPLETED"],
+            QUEUE_STATUS["SKIPPED"],
+            QUEUE_STATUS["CANCELLED"],
+        )
     ]
     return sorted(active_patients, key=_queue_sort_key)
 
@@ -154,6 +361,95 @@ def get_queue_stats():
         "skippedToday": sum(1 for p in today_patients if p["status"] == QUEUE_STATUS["SKIPPED"]),
         "totalToday": len(today_patients),
     }
+
+
+def get_emergency_status():
+    """Return the current emergency state and its audit timestamps."""
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT emergency_id, activated_at, deactivated_at
+            FROM emergency_cases
+            ORDER BY emergency_id DESC
+            LIMIT 1
+            """
+        )
+        row = cursor.fetchone()
+        if not row:
+            return {"active": False, "activatedAt": None, "deactivatedAt": None}
+        return {
+            "active": row["deactivated_at"] is None,
+            "emergencyId": row["emergency_id"],
+            "activatedAt": row["activated_at"].isoformat() if row["activated_at"] else None,
+            "deactivatedAt": row["deactivated_at"].isoformat() if row["deactivated_at"] else None,
+        }
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def activate_emergency(user_id):
+    """Start an emergency unless one is already active."""
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT emergency_id
+            FROM emergency_cases
+            WHERE deactivated_at IS NULL
+            ORDER BY emergency_id DESC
+            LIMIT 1
+            """
+        )
+        if cursor.fetchone():
+            return get_emergency_status(), False
+        cursor.execute(
+            """
+            INSERT INTO emergency_cases (activated_at, activated_by, sms_notification_started_at)
+            VALUES (%s, %s, NULL)
+            """,
+            (datetime.now(), user_id),
+        )
+        conn.commit()
+        return get_emergency_status(), True
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def deactivate_emergency(user_id):
+    """End the active emergency and preserve its activation history."""
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT emergency_id
+            FROM emergency_cases
+            WHERE deactivated_at IS NULL
+            ORDER BY emergency_id DESC
+            LIMIT 1
+            """
+        )
+        row = cursor.fetchone()
+        if not row:
+            return get_emergency_status(), False
+        cursor.execute(
+            """
+            UPDATE emergency_cases
+            SET deactivated_at = %s, deactivated_by = %s
+            WHERE emergency_id = %s
+            """,
+            (datetime.now(), user_id, row["emergency_id"]),
+        )
+        conn.commit()
+        return get_emergency_status(), True
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def get_room_catalog():
@@ -320,10 +616,12 @@ def update_patient(patient):
             UPDATE queue_patients SET
               queue_number = %s, patient_name = %s, patient_phone = %s,
               patient_priority = %s, sms_enabled = %s, reminder_sent = %s,
+              reminder_status = %s, reminder_sent_at = %s,
               service_type = %s, assigned_room = %s, status = %s,
               registered_at = %s, called_at = %s, completed_at = %s,
               tracking_code = %s, result_status = %s, result_ready_at = %s,
-              result_released_at = %s, result_notify_sent = %s
+              result_released_at = %s, result_notify_sent = %s,
+              turn_notification_status = %s, turn_notification_sent_at = %s
             WHERE queue_id = %s
             """,
             (
@@ -333,6 +631,10 @@ def update_patient(patient):
                 _normalize_priority(patient.get("priority", "Regular")),
                 1 if patient.get("smsEnabled") else 0,
                 1 if patient.get("reminderSent") else 0,
+                patient.get("reminderStatus", "Not Sent"),
+                datetime.fromisoformat(patient["reminderSentAt"])
+                if patient.get("reminderSentAt")
+                else None,
                 patient["serviceType"],
                 patient["assignedRoom"],
                 patient["status"],
@@ -348,6 +650,10 @@ def update_patient(patient):
                 if patient.get("resultReleasedAt")
                 else None,
                 1 if patient.get("resultNotifySent") else 0,
+                patient.get("turnNotificationStatus", "Not Sent"),
+                datetime.fromisoformat(patient["turnNotificationSentAt"])
+                if patient.get("turnNotificationSentAt")
+                else None,
                 patient["queueId"],
             ),
         )
@@ -357,95 +663,315 @@ def update_patient(patient):
         conn.close()
 
 
-def dispatch_pending_reminders():
-    """Queue a simulated SMS reminder when a patient is due in the next 10-minute window."""
-    waiting_patients = [
-        p
-        for p in get_active_queue()
-        if p["status"] == QUEUE_STATUS["WAITING"]
-        and p.get("smsEnabled")
-        and p.get("patientPhone")
-        and not p.get("reminderSent")
-    ]
+def record_sms_log(patient, notification_type, message, status):
+    """Persist each SMS attempt for simulation and future modem auditing."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO sms_notification_log
+              (queue_id, patient_name, recipient, notification_type, message, status, sent_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                patient["queueId"],
+                patient["patientName"],
+                patient["patientPhone"],
+                notification_type,
+                message,
+                status,
+                datetime.now(),
+            ),
+        )
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
 
-    now = datetime.now()
-    sent = []
 
-    for index, patient in enumerate(waiting_patients):
-        registered = datetime.fromisoformat(patient["registeredAt"])
-        due_at = registered + timedelta(minutes=index * 10)
-        if now < due_at:
+EMERGENCY_QUEUE_MESSAGE = (
+    "ST. PAUL HOSPITAL - RADIOLOGY\n\n"
+    "Emergency case prioritized. Please be advised that the queue may be delayed. "
+    "We appreciate your patience."
+)
+
+
+def send_emergency_queue_notice(emergency_id):
+    """Send one emergency notice to eligible waiting regular patients per incident."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            UPDATE emergency_cases
+            SET sms_notification_started_at = %s
+            WHERE emergency_id = %s AND sms_notification_started_at IS NULL
+            """,
+            (datetime.now(), emergency_id),
+        )
+        if cursor.rowcount != 1:
+            return {
+                "status": "skipped",
+                "sent": 0,
+                "failed": 0,
+                "skipped": 0,
+                "failures": [],
+                "message": "Emergency notice was already attempted for this incident.",
+            }
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+    result = {
+        "status": "sent",
+        "sent": 0,
+        "failed": 0,
+        "skipped": 0,
+        "failures": [],
+        "message": "",
+    }
+    try:
+        waiting_regular = [
+            patient
+            for patient in get_active_queue()
+            if patient["status"] == QUEUE_STATUS["WAITING"]
+            and patient.get("priority", "Regular") == "Regular"
+        ]
+    except Error as exc:
+        result.update(
+            {
+                "status": "failed",
+                "message": "Could not load waiting patients: " + str(exc),
+            }
+        )
+        return result
+
+    for patient in waiting_regular:
+        if not patient.get("smsEnabled") or not patient.get("patientPhone"):
+            result["skipped"] += 1
+            continue
+        try:
+            recipient = validate_phone_number(patient["patientPhone"])
+        except SmsError:
+            result["skipped"] += 1
             continue
 
+        try:
+            delivery_status = send_sms(recipient, EMERGENCY_QUEUE_MESSAGE)
+        except SmsError as exc:
+            result["failed"] += 1
+            result["failures"].append(
+                {"queueNumber": patient["queueNumber"], "message": str(exc)}
+            )
+            try:
+                record_sms_log(
+                    patient,
+                    "Emergency Queue Notice",
+                    EMERGENCY_QUEUE_MESSAGE,
+                    "Failed",
+                )
+            except Error as log_error:
+                result["failures"][-1]["message"] += (
+                    " SMS log could not be saved: " + str(log_error)
+                )
+            continue
+
+        result["sent"] += 1
+        try:
+            record_sms_log(
+                patient,
+                "Emergency Queue Notice",
+                EMERGENCY_QUEUE_MESSAGE,
+                delivery_status,
+            )
+        except Error as log_error:
+            result["failures"].append(
+                {
+                    "queueNumber": patient["queueNumber"],
+                    "message": "SMS was sent, but its log could not be saved: "
+                    + str(log_error),
+                }
+            )
+
+    if result["failed"] or result["failures"]:
+        result["status"] = "partial" if result["sent"] else "failed"
+        result["message"] = "Some emergency SMS notifications failed."
+    elif not result["sent"]:
+        result["status"] = "skipped"
+        result["message"] = "No eligible waiting regular patients were found."
+    else:
+        result["message"] = "Emergency notice sent to waiting patients."
+    return result
+
+
+def get_sms_notification_log(limit=50):
+    """Return recent SMS attempts for the staff simulation/audit panel."""
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT sms_log_id, queue_id, patient_name, recipient,
+                   notification_type, message, status, sent_at
+            FROM sms_notification_log
+            ORDER BY sent_at DESC, sms_log_id DESC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+        return [
+            {
+                "logId": row["sms_log_id"],
+                "queueId": row["queue_id"],
+                "patientName": row["patient_name"],
+                "recipient": row["recipient"],
+                "notificationType": row["notification_type"],
+                "message": row["message"],
+                "status": row["status"],
+                "sentAt": row["sent_at"].isoformat() if row["sent_at"] else None,
+            }
+            for row in cursor.fetchall()
+        ]
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def dispatch_pending_reminders():
+    """Send the one-time reminder to an eligible fifth waiting patient."""
+    active_queue = get_active_queue()
+    waiting_queue = [
+        patient
+        for patient in active_queue
+        if patient["status"] == QUEUE_STATUS["WAITING"]
+    ]
+    results = []
+
+    for index, patient in enumerate(waiting_queue):
+        if index != REMINDER_AHEAD_COUNT:
+            continue
+        if (
+            not patient.get("smsEnabled")
+            or not patient.get("patientPhone")
+            or patient.get("reminderSent")
+            or patient.get("reminderStatus")
+            in ("Sent", "Simulation Sent", "Sending", "Failed")
+        ):
+            continue
+        try:
+            phone = validate_phone_number(patient["patientPhone"])
+        except SmsError:
+            continue
+        if not _claim_queue_reminder(patient["queueId"]):
+            continue
+
+        patient["reminderStatus"] = "Sending"
+        message = (
+            "ST. PAUL HOSPITAL - RADIOLOGY\n\n"
+            f"{patient['queueNumber']}, you are {REMINDER_AHEAD_COUNT} patients away "
+            "from your turn. Please be ready and stay near the designated area."
+        )
+        try:
+            delivery_status = send_sms(phone, message)
+        except SmsError as exc:
+            patient["reminderStatus"] = "Failed"
+            patient["reminderSent"] = False
+            update_patient(patient)
+            record_sms_log(patient, "Queue Reminder", message, "Failed")
+            results.append(
+                {
+                    "queueNumber": patient["queueNumber"],
+                    "message": "5-patients-away SMS failed: " + str(exc),
+                    "failed": True,
+                }
+            )
+            continue
         patient["reminderSent"] = True
+        patient["reminderStatus"] = delivery_status
+        patient["reminderSentAt"] = datetime.now().isoformat()
         update_patient(patient)
-        sent.append(
+        record_sms_log(patient, "Queue Reminder", message, delivery_status)
+        results.append(
             {
                 "queueNumber": patient["queueNumber"],
-                "patientName": patient["patientName"],
-                "message": (
-                    f"Reminder queued for {patient['queueNumber']} ({patient['patientName']}) "
-                    "— patient should be ready in 10 minutes."
-                ),
+                "message": message,
+                "failed": False,
             }
         )
 
-    return sent
+    return results
+
+
+def _claim_queue_reminder(queue_id):
+    """Atomically reserve a reminder attempt so concurrent refreshes cannot duplicate it."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            UPDATE queue_patients
+            SET reminder_status = 'Sending'
+            WHERE queue_id = %s
+              AND status = %s
+              AND sms_enabled = 1
+              AND reminder_sent = 0
+              AND COALESCE(reminder_status, 'Not Sent')
+                  NOT IN ('Sent', 'Simulation Sent', 'Sending', 'Failed')
+            """,
+            (queue_id, QUEUE_STATUS["WAITING"]),
+        )
+        claimed = cursor.rowcount == 1
+        if claimed:
+            conn.commit()
+        return claimed
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def get_reminder_simulation():
-    """Return a preview of the next SMS reminder simulation based on queue timing."""
-    waiting_patients = [
-        p
-        for p in get_active_queue()
-        if p["status"] == QUEUE_STATUS["WAITING"]
-        and p.get("smsEnabled")
-        and p.get("patientPhone")
-        and not p.get("reminderSent")
+    """Return a preview of the patient currently five active positions away."""
+    waiting_queue = [
+        patient
+        for patient in get_active_queue()
+        if patient["status"] == QUEUE_STATUS["WAITING"]
     ]
+    candidates = []
+    if len(waiting_queue) > REMINDER_AHEAD_COUNT:
+        patient = waiting_queue[REMINDER_AHEAD_COUNT]
+        if (
+            patient.get("smsEnabled")
+            and patient.get("patientPhone")
+            and not patient.get("reminderSent")
+            and patient.get("reminderStatus")
+            not in ("Sent", "Simulation Sent", "Sending", "Failed")
+        ):
+            try:
+                validate_phone_number(patient["patientPhone"])
+            except SmsError:
+                pass
+            else:
+                candidates.append(patient)
+    next_patient = candidates[0] if candidates else None
 
-    if not waiting_patients:
+    if not next_patient:
         return {
             "available": False,
-            "message": "No SMS-enabled waiting patients are available for a reminder simulation.",
+            "message": "No eligible SMS-enabled patient is currently five waiting positions away.",
         }
 
-    now = datetime.now()
-    next_patient = None
-    next_minutes = None
-
-    for index, patient in enumerate(waiting_patients):
-        registered = datetime.fromisoformat(patient["registeredAt"])
-        due_at = registered + timedelta(minutes=index * 10)
-        minutes_remaining = max(0, int((due_at - now).total_seconds() // 60))
-
-        if next_patient is None or minutes_remaining < next_minutes:
-            next_patient = patient
-            next_minutes = minutes_remaining
-
-    if next_patient is None:
-        return {
-            "available": False,
-            "message": "No SMS-enabled waiting patients are available for a reminder simulation.",
-        }
-
-    if next_minutes == 0:
-        message = (
-            f"Simulation: {next_patient['queueNumber']} ({next_patient['patientName']}) is eligible "
-            "for a reminder right now."
-        )
-    else:
-        message = (
-            f"Simulation: {next_patient['queueNumber']} ({next_patient['patientName']}) would receive "
-            f"an SMS in {next_minutes} minute(s)."
-        )
+    message = (
+        f"Simulation: {next_patient['queueNumber']} is exactly {REMINDER_AHEAD_COUNT} "
+        "waiting patients away from their turn."
+    )
 
     return {
         "available": True,
         "queueNumber": next_patient["queueNumber"],
         "patientName": next_patient["patientName"],
         "serviceType": next_patient["serviceType"],
-        "minutesUntilTurn": next_minutes,
         "message": message,
     }
 
@@ -470,6 +996,26 @@ def call_next_patient():
     return next_p, None
 
 
+def send_call_notification(patient):
+    """Send an opted-in patient their queue number and assigned room."""
+    if not patient.get("smsEnabled"):
+        return {"status": "Skipped", "message": "SMS notification is not enabled."}
+    if not patient.get("patientPhone"):
+        return {"status": "Failed", "message": "Patient phone number is missing."}
+
+    message = (
+        f"{patient['queueNumber']}, please proceed to {patient['assignedRoom']}."
+    )
+    try:
+        delivery_status = send_sms(patient["patientPhone"], message)
+    except SmsError as exc:
+        record_sms_log(patient, "Patient Called", message, "Failed")
+        return {"status": "Failed", "message": str(exc)}
+
+    record_sms_log(patient, "Patient Called", message, delivery_status)
+    return {"status": delivery_status, "message": message}
+
+
 def skip_patient(queue_id):
     patient = get_patient_by_id(queue_id)
     if not patient:
@@ -477,6 +1023,40 @@ def skip_patient(queue_id):
     patient["status"] = QUEUE_STATUS["SKIPPED"]
     update_patient(patient)
     return patient, None
+
+
+def cancel_patient(queue_id):
+    patient = get_patient_by_id(queue_id)
+    if not patient:
+        return None, "Patient not found."
+    if patient["status"] in (QUEUE_STATUS["COMPLETED"], QUEUE_STATUS["SKIPPED"]):
+        return None, "This queue entry cannot be cancelled."
+    patient["status"] = "Cancelled"
+    update_patient(patient)
+    return patient, None
+
+
+def move_patient(queue_id, direction):
+    """Move a waiting patient by swapping registration order with its neighbor."""
+    patients = [
+        p for p in get_active_queue()
+        if p["status"] == QUEUE_STATUS["WAITING"]
+    ]
+    index = next((i for i, p in enumerate(patients) if p["queueId"] == queue_id), None)
+    if index is None:
+        return None, "Only waiting patients can be moved."
+    neighbor_index = index - 1 if direction == "up" else index + 1
+    if neighbor_index < 0 or neighbor_index >= len(patients):
+        return patients[index], None
+
+    current = patients[index]
+    neighbor = patients[neighbor_index]
+    current_registered = current["registeredAt"]
+    current["registeredAt"] = neighbor["registeredAt"]
+    neighbor["registeredAt"] = current_registered
+    update_patient(current)
+    update_patient(neighbor)
+    return current, None
 
 
 def recall_patient(queue_id):
@@ -561,18 +1141,8 @@ def mark_ready_for_release(queue_id, send_notification=True):
     now = datetime.now().isoformat()
     patient["resultStatus"] = RESULT_STATUS["READY"]
     patient["resultReadyAt"] = now
-    if send_notification:
-        patient["resultNotifySent"] = True
     update_patient(patient)
-
-    message = (
-        f"SMS to patient: St. Paul Hospital — Your radiology results for "
-        f"{patient['queueNumber']} ({patient['serviceType']}) are ready for release. "
-        f"Please proceed to the Radiology Release Counter to claim your results."
-        if send_notification
-        else None
-    )
-    return patient, message
+    return patient, None
 
 
 def mark_result_released(queue_id):
@@ -590,19 +1160,35 @@ def mark_result_released(queue_id):
 
 
 def send_result_notification(queue_id):
-    """Send (simulate) patient notification that results are ready."""
+    """Send the manual turn notification through SIM800C once."""
     patient = get_patient_by_id(queue_id)
     if not patient:
         return None, "Patient not found."
     if patient["resultStatus"] != RESULT_STATUS["READY"]:
         return None, "Mark results as 'Ready for Release' first."
+    if not patient["smsEnabled"]:
+        return None, "SMS notification is not enabled for this patient."
+    if patient.get("turnNotificationStatus") in ("Sent", "Simulation Sent"):
+        return None, "The turn notification has already been sent."
 
-    patient["resultNotifySent"] = True
+    patient["turnNotificationStatus"] = "Sending"
     update_patient(patient)
     msg = (
-        f"St. Paul Hospital: Dear {patient['patientName']}, your radiology results "
-        f"({patient['queueNumber']}) are ready for claiming at the Release Counter."
+        f"YOUR TURN: Queue number {patient['queueNumber']} is now ready. "
+        "Please proceed to the designated counter. Thank you."
     )
+    try:
+        delivery_status = send_sms(patient["patientPhone"], msg)
+    except SmsError as exc:
+        patient["turnNotificationStatus"] = "Failed"
+        update_patient(patient)
+        record_sms_log(patient, "Turn Notification", msg, "Failed")
+        return None, str(exc)
+    patient["resultNotifySent"] = True
+    patient["turnNotificationStatus"] = delivery_status
+    patient["turnNotificationSentAt"] = datetime.now().isoformat()
+    update_patient(patient)
+    record_sms_log(patient, "Turn Notification", msg, delivery_status)
     return patient, msg
 
 
@@ -631,12 +1217,21 @@ def get_staff_analytics():
 
     avg_wait = round(sum(wait_minutes) / len(wait_minutes), 1) if wait_minutes else 0
 
-    completed_today = [p for p in today_patients if p["status"] == QUEUE_STATUS["COMPLETED"]]
+    completed_today_cohort = [
+        p for p in today_patients if p["status"] == QUEUE_STATUS["COMPLETED"]
+    ]
+    completed_today = [
+        p
+        for p in all_patients
+        if p["status"] == QUEUE_STATUS["COMPLETED"] and is_today(p["completedAt"])
+    ]
     skipped_today = [p for p in today_patients if p["status"] == QUEUE_STATUS["SKIPPED"]]
     total_today = len(today_patients)
 
     completion_rate = (
-        round(len(completed_today) / total_today * 100, 1) if total_today > 0 else 0
+        round(len(completed_today_cohort) / total_today * 100, 1)
+        if total_today > 0
+        else 0
     )
 
     # LINQ-style: group by service type
@@ -671,7 +1266,7 @@ def get_staff_analytics():
             hourly[hour] += 1
     hourly_volume = [{"hour": f"{h}:00", "count": hourly[h]} for h in sorted(hourly)]
 
-    # Recent completed (newest first)
+    # Recent completed today (newest first).
     recent_completed = sorted(
         completed_today,
         key=lambda p: p["completedAt"] or p["registeredAt"],

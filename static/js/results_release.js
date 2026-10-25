@@ -88,9 +88,11 @@ function renderTable(results) {
     if (selectedQueueId === p.queueId) tr.classList.add("selected");
 
     const statusClass = resultStatusClass(p.resultStatus);
-    const notified = p.resultNotifySent
-      ? '<span class="notify-yes">Yes</span>'
-      : '<span class="notify-no">No</span>';
+    const turnSent = p.turnNotificationStatus === "Sent" || p.turnNotificationStatus === "Simulation Sent";
+    const notified = p.smsEnabled
+      ? '<span class="' + (turnSent ? "notify-yes" : "notify-no") + '">' +
+        escapeHtml(p.turnNotificationStatus || "Not Sent") + "</span>"
+      : '<span class="notify-no">SMS Disabled</span>';
 
     tr.innerHTML =
       "<td>" + escapeHtml(p.queueNumber) + "</td>" +
@@ -124,10 +126,11 @@ function buildActions(p) {
       '">Mark Ready</button>';
   }
   if (p.resultStatus === "Ready for Release") {
-    html +=
-      '<button type="button" class="btn btn-sm btn-primary btn-notify" data-id="' +
-      p.queueId +
-      '">Notify Patient</button> ';
+    const turnSent = p.turnNotificationStatus === "Sent" || p.turnNotificationStatus === "Simulation Sent";
+    html += p.smsEnabled && !turnSent
+      ? '<button type="button" class="btn btn-sm btn-primary btn-notify" data-id="' + p.queueId + '">📱 Notify Patient</button> '
+      : '<button type="button" class="btn btn-sm btn-secondary" disabled>' +
+        (p.smsEnabled ? "✓ " + escapeHtml(p.turnNotificationStatus) : "SMS Disabled") + "</button> ";
     html +=
       '<button type="button" class="btn btn-sm btn-secondary btn-released" data-id="' +
       p.queueId +
@@ -141,19 +144,12 @@ function bindActionButtons() {
   document.querySelectorAll(".btn-mark-ready").forEach(function (btn) {
     btn.addEventListener("click", async function () {
       const id = parseInt(btn.dataset.id, 10);
-      const sendSms = confirm(
-        "Mark results READY FOR RELEASE and send SMS notification to patient?"
-      );
-      const result = await apiMarkResultReady(id, sendSms);
+      const result = await apiMarkResultReady(id, false);
       if (!result.success) {
         alert(result.message);
         return;
       }
-      if (result.notificationMessage) {
-        alert("Results marked ready.\n\n" + result.notificationMessage);
-      } else {
-        alert("Results marked ready for release.");
-      }
+      alert("Results marked ready for release.");
       await loadResults();
     });
   });

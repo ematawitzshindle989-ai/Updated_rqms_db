@@ -1,13 +1,18 @@
 /* Staff Analytics page styles */
 .dashboard-page {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-
-    background-image: url('../images/login-bg.jpg');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+ --blue-primary: #1e5aa0;
+  --blue-dark: #0f3460;
+  --blue-light: #e8f1fb;
+  --white: #ffffff;
+  --gray-100: #f4f6f8;
+  --gray-200: #e2e8f0;
+  --gray-500: #64748b;
+  --gray-900: #1e293b;
+  --green: #2e7d32;
+  --red: #c62828;
+  --shadow: 0 4px 20px rgba(15, 52, 96, 0.12);
+  --radius: 8px;
+  --font: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .top-bar {

@@ -31,6 +31,31 @@
     align-items: start;
 }
 
+.emergency-banner {
+    margin: 0 0 32px;
+    padding: 28px 32px;
+    border: 4px solid #ffb300;
+    border-radius: 12px;
+    background: #b71c1c;
+    color: #fff;
+    text-align: center;
+    box-shadow: 0 0 24px rgba(255, 179, 0, 0.45);
+}
+
+.emergency-banner.hidden {
+    display: none;
+}
+
+.emergency-banner h2 {
+    margin-bottom: 16px;
+    font-size: clamp(1.6rem, 4vw, 3.2rem);
+}
+
+.emergency-banner p {
+    font-size: clamp(1rem, 2vw, 1.5rem);
+    margin: 8px 0;
+}
+
 .now-label {
     font-size: 2.205rem;
     opacity: 0.8;

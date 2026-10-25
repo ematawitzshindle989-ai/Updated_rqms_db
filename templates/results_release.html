@@ -20,6 +20,7 @@
 
   <nav class="nav-bar" aria-label="Main menu">
     <a href="{{ url_for('rqms.dashboard_page') }}">Dashboard</a>
+    <a href="{{ url_for('rqms.patients_page') }}">Patients</a>
     <a href="{{ url_for('rqms.staff_analytics_page') }}">Staff Analytics</a>
     <a href="{{ url_for('rqms.results_release_page') }}" class="active">Results Release</a>
     <button type="button" class="nav-link" id="menuDisplay">Open Display Monitor</button>
@@ -73,7 +74,7 @@
               <th>Exam Completed</th>
               <th>Result Status</th>
               <th>Ready At</th>
-              <th>Notified</th>
+              <th>SMS Status</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -84,7 +85,7 @@
 
     <p class="analytics-meta">
       Workflow: Complete exam on Dashboard → Processing → Mark <strong>Ready for Release</strong>
-      (sends SMS) → Patient claims → Mark <strong>Released</strong>.
+      → optionally notify an SMS-enabled patient → Patient claims → Mark <strong>Released</strong>.
     </p>
   </main>
 

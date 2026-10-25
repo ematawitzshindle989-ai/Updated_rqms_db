@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RQMS — Account Handler</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/account_handler.css') }}" />
+</head>
+
+<body class="dashboard-page account-handler-page">
+  <header class="top-bar">
+    <div>
+      <h1>Account Handler</h1>
+      <p class="staff-info">St. Paul Hospital — Staff Account Administration</p>
+    </div>
+    <p class="clock" id="lblClock"></p>
+  </header>
+
+  <nav class="nav-bar" aria-label="Main menu">
+    <a href="{{ url_for('rqms.dashboard_page') }}">Dashboard</a>
+    <a href="{{ url_for('rqms.patients_page') }}">Patients</a>
+    <a href="{{ url_for('rqms.staff_analytics_page') }}">Staff Analytics</a>
+    <a href="{{ url_for('rqms.results_release_page') }}">Results Release</a>
+    <a href="{{ url_for('rqms.account_handler_page') }}" class="active">Account Handler</a>
+    <button type="button" class="nav-link" id="menuLogout">Logout</button>
+  </nav>
+
+  <main class="main-content account-main">
+    <section class="panel account-create-panel">
+      <div class="panel-header">Create Staff Account</div>
+      <form id="createStaffForm" class="account-form" novalidate>
+        <p class="account-message" id="accountMessage" role="status" aria-live="polite"></p>
+        <div class="account-fields">
+          <label>
+            <span>Full name</span>
+            <input type="text" name="fullName" maxlength="100" autocomplete="name" required />
+          </label>
+          <label>
+            <span>Username</span>
+            <input type="text" name="username" minlength="3" maxlength="50" autocomplete="off" required />
+          </label>
+          <label>
+            <span>Temporary password</span>
+            <input type="password" name="password" minlength="8" maxlength="128" autocomplete="new-password" required />
+          </label>
+          <button type="submit" class="btn btn-primary">Create Staff Account</button>
+        </div>
+        <p class="account-help">New accounts are created as Staff. Passwords must be at least 8 characters.</p>
+      </form>
+    </section>
+
+    <section class="panel account-list-panel">
+      <div class="panel-header account-list-header">
+        <span>Staff Accounts</span>
+        <button type="button" class="btn btn-outline btn-sm" id="btnRefreshAccounts">Refresh List</button>
+      </div>
+      <div class="table-wrap account-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Full Name</th>
+              <th>Username</th>
+              <th>Account Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="staffAccountsBody">
+            <tr><td colspan="4" class="account-empty">Loading Staff accounts...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="editStaffModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editStaffTitle">
+    <form id="editStaffForm" class="modal account-modal">
+      <div class="modal-header" id="editStaffTitle">Edit Staff Account</div>
+      <div class="modal-body">
+        <p class="account-message" id="editStaffMessage" role="alert"></p>
+        <label class="account-modal-field">
+          <span>Full name</span>
+          <input type="text" name="fullName" maxlength="100" required />
+        </label>
+        <label class="account-modal-field">
+          <span>Username</span>
+          <input type="text" name="username" minlength="3" maxlength="50" required />
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close-modal="editStaffModal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="resetPasswordModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="resetPasswordTitle">
+    <form id="resetPasswordForm" class="modal account-modal">
+      <div class="modal-header" id="resetPasswordTitle">Reset Staff Password</div>
+      <div class="modal-body">
+        <p class="account-message" id="resetPasswordMessage" role="alert"></p>
+        <label class="account-modal-field">
+          <span>New password</span>
+          <input type="password" name="password" minlength="8" maxlength="128" autocomplete="new-password" required />
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close-modal="resetPasswordModal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Reset Password</button>
+      </div>
+    </form>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/account_handler.js') }}"></script>
+</body>
+
+</html>

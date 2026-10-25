@@ -45,8 +45,9 @@ document.addEventListener("DOMContentLoaded", async function () {
       alert("Welcome, " + result.user.fullName + "! (" + result.user.role + ")");
       window.location.href = "/dashboard";
     } catch (err) {
-      showError("Cannot reach server. Start Flask and MySQL.");
-      alert("Server error. Run: python app.py");
+      console.error(err);
+      showError("Account not registered, or username or password is incorrect.");
+      alert("Account not registered, or username or password is incorrect.");
     }
   });
 

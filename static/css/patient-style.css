@@ -1,0 +1,133 @@
+/* Registered Patient List styles. Header and navigation come from dashboard.css. */
+.patients-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.patients-page > .top-bar,
+.patients-page > .nav-bar {
+  flex: 0 0 auto;
+}
+
+.registered-patients-page {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.registered-patients-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.patient-search {
+  width: min(100%, 320px);
+  padding: 8px 12px;
+  border: 1px solid #b8cbe0;
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--gray-900);
+  font-size: 0.875rem;
+}
+
+.patient-search:focus {
+  border-color: var(--blue-primary);
+}
+
+.registered-patients-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.registered-patients-panel .table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.registered-patients-panel thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.registered-patients-panel table {
+  min-width: 900px;
+}
+
+.registered-patients-panel th {
+  white-space: nowrap;
+}
+
+.registered-patients-panel tbody tr:hover td {
+  background: var(--blue-light);
+}
+
+.registered-patients-panel td {
+  vertical-align: middle;
+}
+
+.sms-enabled,
+.sms-disabled {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sms-reminder-status {
+  display: block;
+  margin-top: 4px;
+  color: var(--gray-500);
+  font-size: 0.72rem;
+}
+
+.sms-enabled {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.sms-disabled {
+  background: var(--gray-100);
+  color: var(--gray-500);
+}
+
+.empty-patients {
+  padding: 28px;
+  color: var(--gray-500);
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .registered-patients-page {
+    padding: 16px;
+  }
+
+  .registered-patients-panel-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .patient-search {
+    width: 100%;
+  }
+}

@@ -16,6 +16,8 @@ async function refreshDisplay() {
   try {
     const data = await apiGetDisplay();
     const current = data.current;
+    const emergencyBanner = document.getElementById("emergencyBanner");
+    emergencyBanner.classList.toggle("hidden", !(data.emergency && data.emergency.active));
 
     document.getElementById("lblNowNumber").textContent = current ? current.queueNumber : "---";
     document.getElementById("lblNowRoom").textContent = current

@@ -10,9 +10,10 @@ USE rqms_db;
 CREATE TABLE IF NOT EXISTS users (
   user_id INT AUTO_INCREMENT PRIMARY KEY,
   username VARCHAR(50) NOT NULL UNIQUE,
-  password VARCHAR(100) NOT NULL,
+  password VARCHAR(255) NOT NULL,
   full_name VARCHAR(100) NOT NULL,
-  role VARCHAR(20) NOT NULL
+  role VARCHAR(20) NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS queue_patients (
@@ -23,6 +24,8 @@ CREATE TABLE IF NOT EXISTS queue_patients (
   patient_priority VARCHAR(20) DEFAULT 'Regular',
   sms_enabled TINYINT(1) DEFAULT 0,
   reminder_sent TINYINT(1) DEFAULT 0,
+  reminder_status VARCHAR(20) DEFAULT 'Not Sent',
+  reminder_sent_at DATETIME NULL,
   service_type VARCHAR(50) NOT NULL,
   assigned_room VARCHAR(50) NOT NULL,
   status VARCHAR(20) NOT NULL,
@@ -33,7 +36,9 @@ CREATE TABLE IF NOT EXISTS queue_patients (
   result_status VARCHAR(30) DEFAULT '—',
   result_ready_at DATETIME NULL,
   result_released_at DATETIME NULL,
-  result_notify_sent TINYINT(1) DEFAULT 0
+  result_notify_sent TINYINT(1) DEFAULT 0,
+  turn_notification_status VARCHAR(20) DEFAULT 'Not Sent',
+  turn_notification_sent_at DATETIME NULL
 );
 
 CREATE TABLE IF NOT EXISTS room_catalog (
@@ -44,6 +49,33 @@ CREATE TABLE IF NOT EXISTS room_catalog (
 CREATE TABLE IF NOT EXISTS service_catalog (
   service_id INT AUTO_INCREMENT PRIMARY KEY,
   service_name VARCHAR(50) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS emergency_cases (
+  emergency_id INT AUTO_INCREMENT PRIMARY KEY,
+  activated_at DATETIME NOT NULL,
+  deactivated_at DATETIME NULL,
+  activated_by INT NULL,
+  deactivated_by INT NULL,
+  sms_notification_started_at DATETIME NULL,
+  INDEX idx_emergency_active (deactivated_at),
+  CONSTRAINT fk_emergency_activated_by
+    FOREIGN KEY (activated_by) REFERENCES users(user_id),
+  CONSTRAINT fk_emergency_deactivated_by
+    FOREIGN KEY (deactivated_by) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS sms_notification_log (
+  sms_log_id INT AUTO_INCREMENT PRIMARY KEY,
+  queue_id INT NULL,
+  patient_name VARCHAR(100) NOT NULL,
+  recipient VARCHAR(30) NOT NULL,
+  notification_type VARCHAR(30) NOT NULL,
+  message TEXT NOT NULL,
+  status VARCHAR(30) NOT NULL,
+  sent_at DATETIME NOT NULL,
+  INDEX idx_sms_log_queue (queue_id),
+  INDEX idx_sms_log_sent_at (sent_at)
 );
 
 -- Seed staff accounts (password: 1234)
